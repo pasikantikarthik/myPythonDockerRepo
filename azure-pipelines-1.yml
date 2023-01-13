@@ -51,7 +51,7 @@ steps:
 - task: Docker@2
   inputs:
     command: build
-    Dockerfile: 'dockerfile1'
+    Dockerfile: 'dockerfile'
     containerRegistry: acr-connection
     repository: $(Build.Repository.Name)
     tags: |
