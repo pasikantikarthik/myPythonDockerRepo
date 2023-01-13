@@ -1,0 +1,102 @@
+# Starter pipeline
+
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+pool:
+  name: Azure-Infra_Pool
+
+steps:
+- task: Docker@2
+  inputs:
+    command: login
+    containerRegistry: acr-connection
+- task: JFrogGenericArtifacts@1
+  inputs:
+    command: 'Download'
+    connection: 'jfrogscv2'
+    specSource: 'taskConfiguration'
+    fileSpec: |
+      {
+        "files": [
+          {
+            "pattern": "rba-artifacts/spring-boot/spring-boot/2.6.9/spring-boot-2.6.9.jar",
+            "target": "rba-artifacts/"
+          }
+        ]
+      }
+    failNoOp: true
+- task: DownloadSecureFile@1
+  name: certificate
+  inputs:
+    secureFile: mypoc.crt
+- script: |
+    mkdir -p $(System.DefaultWorkingDirectory)/trust/private
+    cp $(certificate.secureFilePath) $(System.DefaultWorkingDirectory)/trust/private
+    echo$(System.DefaultWorkingDirectory)/trust/private
+    git clone https://github.com/ayushigupta-12/devopsrbapoc
+
+- task: DownloadSecureFile@1
+  name: privatekey
+  inputs:
+    secureFile: mykey.key
+- script: |
+    cp $(privateKey.secureFilePath) $(System.DefaultWorkingDirectory)/trust/private
+    echo $(System.DefaultWorkingDirectory)/trust/private
+
+- task: Docker@2
+  inputs:
+    command: build
+    Dockerfile: 'dockerfile1'
+    containerRegistry: acr-connection
+    repository: $(Build.Repository.Name)
+    tags: |
+      $(Build.BuildId)
+    arguments: '--disable-content-trust=false'
+- script: |
+    docker tag acr5000.azurecr.io/$(Build.Repository.Name):$(Build.BuildId) devopsrbapocjfrog.jfrog.io/dockerimages/$(Build.Repository.Name):$(Build.BuildId) 
+- task: Docker@2
+  inputs:
+    containerRegistry: 'jfrogrepo'
+    repository: 'dockerimages/$(Build.Repository.Name)'
+    command: 'push'
+    tags: $(Build.BuildId)
+
+- task: JFrogDocker@1
+  displayName: 'JFrog Docker Scan'
+  inputs:
+    command: Scan
+    xrayConnection: 'jxray_svc'
+    imageName: 'devopsrbapocjfrog.jfrog.io/dockerimages/ayushigupta-12/devopsrbapoc:$(Build.BuildId)'
+    watchesSource: repoPath
+    repoPath: dockerimages
+- script: |
+    docker tag devopsrbapocjfrog.jfrog.io/dockerimages/$(Build.Repository.Name):$(Build.BuildId) acr5000.azurecr.io/$(Build.Repository.Name):$(Build.BuildId)
+    docker rmi -f devopsrbapocjfrog.jfrog.io/dockerimages/$(Build.Repository.Name):$(Build.BuildId)
+    echo $(System.DefaultWorkingDirectory)
+    cd $(System.DefaultWorkingDirectory)/trust/private
+    chmod 600 mykey.key
+    export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="tcspoc123"
+    docker trust key load mykey.key --name tcspoc
+    az acr login -n acr5000.azurecr.io
+    export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="tcspoc123"
+    export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="tcspoc123"
+    docker trust signer add --key mypoc.crt tcspoc acr5000.azurecr.io/$(Build.Repository.Name):$(Build.BuildId)
+    ls
+    pwd
+    docker trust inspect --pretty acr5000.azurecr.io/$(Build.Repository.Name):$(Build.BuildId)
+    #Repo_Key=`docker trust inspect --pretty acr5000.azurecr.io/$(Build.Repository.Name):$(Build.BuildId) | grep "Repository Key" | awk '{print $3}'`
+    #docker trust key load $Repo_Key
+    
+- task: Docker@2
+  inputs:
+    containerRegistry: 'app_acr_registry_service_connection'
+    repository: '$(Build.Repository.Name)'
+    command: 'push'
+    tags: '$(Build.BuildId)'
+  env:
+    DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE: tcspoc123
