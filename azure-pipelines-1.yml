@@ -58,7 +58,7 @@ steps:
       $(Build.BuildId)
     arguments: '--disable-content-trust=false'
 - script: |
-    docker tag acr5000.azurecr.io/$(Build.Repository.Name):$(Build.BuildId) devopsrbapocjfrog.jfrog.io/dockerimages/$(Build.Repository.Name):$(Build.BuildId) 
+    docker tag $(Build.Repository.Name):$(Build.BuildId) devopsrbapocjfrog.jfrog.io/dockerimages/$(Build.Repository.Name):$(Build.BuildId) 
 - task: Docker@2
   inputs:
     containerRegistry: 'jfrogrepo'
