@@ -58,7 +58,7 @@ steps:
       $(Build.BuildId)
     arguments: '--disable-content-trust=false'
 - script: |
-    docker tag pasikantikarthik/mypythondockerrepo:$(Build.BuildId) devopsrbapocjfrog.jfrog.io/dockerimages/pasikantikarthik/mypythondockerrepo:$(Build.BuildId)
+    docker tag acr5000.azurecr.io/pasikantikarthik/mypythondockerrepo:$(Build.BuildId) devopsrbapocjfrog.jfrog.io/dockerimages/pasikantikarthik/mypythondockerrepo:$(Build.BuildId)
 - task: Docker@2
   inputs:
     containerRegistry: 'jfrogrepo'
